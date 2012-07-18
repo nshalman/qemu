@@ -774,7 +774,11 @@ GuestNetworkInterfaceList *qmp_guest_network_get_interfaces(Error **errp)
                 goto error;
             }
 
+#if defined(__sun__)
+            mac_addr = (unsigned char *) &ifr.ifr_enaddr;
+#else
             mac_addr = (unsigned char *) &ifr.ifr_hwaddr.sa_data;
+#endif
 
             if (asprintf(&info->value->hardware_address,
                          "%02x:%02x:%02x:%02x:%02x:%02x",
