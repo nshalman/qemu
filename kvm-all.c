@@ -177,12 +177,26 @@ int kvm_physical_memory_addr_from_host(KVMState *s, void *ram,
 static int kvm_set_user_memory_region(KVMState *s, KVMSlot *slot)
 {
     struct kvm_userspace_memory_region mem;
+#ifdef CONFIG_SOLARIS
+    caddr_t p;
+#endif
 
     mem.slot = slot->slot;
     mem.guest_phys_addr = slot->start_addr;
     mem.memory_size = slot->memory_size;
     mem.userspace_addr = (unsigned long)slot->ram;
     mem.flags = slot->flags;
+#ifdef CONFIG_SOLARIS
+    /* we need to touch each page, presumably to ensure that
+     * mlock() will succeed, so we use volatile to ensure it
+     * doesn't get optimised away
+     */
+    for (p = (caddr_t)mem.userspace_addr;
+      p < (caddr_t)mem.userspace_addr + mem.memory_size;
+      p += PAGE_SIZE)
+        (void) *(volatile char *)p;
+#endif /* CONFIG_SOLARIS */
+
     if (s->migration_log) {
         mem.flags |= KVM_MEM_LOG_DIRTY_PAGES;
     }
