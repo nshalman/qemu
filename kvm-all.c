@@ -3,6 +3,7 @@
  *
  * Copyright IBM, Corp. 2008
  *           Red Hat, Inc. 2008
+ * Portions Copyright 2011 Joyent, Inc.
  *
  * Authors:
  *  Anthony Liguori   <aliguori@us.ibm.com>
@@ -195,6 +196,31 @@ static void kvm_reset_vcpu(void *opaque)
     kvm_arch_reset_vcpu(env);
 }
 
+#ifdef CONFIG_SOLARIS
+static int kvm_vm_clone(KVMState *s)
+{
+    struct stat stat;
+    int fd;
+
+    if (fstat(s->fd, &stat) != 0) {
+        return -errno;
+    }
+
+    fd = qemu_open("/dev/kvm", O_RDWR);
+
+    if (fd == -1) {
+        return -errno;
+    }
+
+    if (ioctl(fd, KVM_CLONE, stat.st_rdev) == -1) {
+        close(fd);
+        return -errno;
+    }
+
+    return fd;
+}
+#endif
+
 int kvm_init_vcpu(CPUArchState *env)
 {
     KVMState *s = kvm_state;
@@ -203,13 +229,27 @@ int kvm_init_vcpu(CPUArchState *env)
 
     DPRINTF("kvm_init_vcpu\n");
 
+#ifdef CONFIG_SOLARIS
+    ret = kvm_vm_clone(kvm_state);
+
+    if (ret < 0) {
+        fprintf(stderr, "kvm_init_vcpu could not clone fd: %m\n");
+        goto err;
+    }
+    env->kvm_fd = ret;
+
+    ret = ioctl(env->kvm_fd, KVM_CREATE_VCPU, env->cpu_index);
+#else
     ret = kvm_vm_ioctl(s, KVM_CREATE_VCPU, env->cpu_index);
+#endif
     if (ret < 0) {
         DPRINTF("kvm_create_vcpu failed\n");
         goto err;
     }
 
+#ifndef CONFIG_SOLARIS
     env->kvm_fd = ret;
+#endif
     env->kvm_state = s;
     env->kvm_vcpu_dirty = 1;
 
@@ -1026,6 +1066,9 @@ int kvm_init(void)
         ret = s->vmfd;
         goto err;
     }
+#ifdef CONFIG_SOLARIS
+    s->vmfd = s->fd;
+#endif
 
     missing_cap = kvm_check_extension_list(s, kvm_required_capabilites);
     if (!missing_cap) {
@@ -1292,6 +1335,19 @@ int kvm_cpu_exec(CPUArchState *env)
             DPRINTF("irq_window_open\n");
             ret = EXCP_INTERRUPT;
             break;
+#ifdef CONFIG_SOLARIS
+        /*
+         * In the case of an external interrupt we can get a zero
+         * return from the ioctl, with a KVM_EXIT_INTR. This doesn't
+         * happen on linux
+         *
+         * Not entirely sure what to do here.
+         */
+        case KVM_EXIT_INTR:
+            DPRINTF("exit_intr (run_ret is %d)\n", run_ret);
+            ret = EXCP_INTERRUPT;
+            break;
+#endif
         case KVM_EXIT_SHUTDOWN:
             DPRINTF("shutdown\n");
             qemu_system_reset_request();
@@ -1636,7 +1692,7 @@ int kvm_set_signal_mask(CPUArchState *env, const sigset_t *sigset)
 
     sigmask = g_malloc(sizeof(*sigmask) + sizeof(*sigset));
 
-    sigmask->len = 8;
+    sigmask->len = sizeof(sigset_t);
     memcpy(sigmask->sigset, sigset, sizeof(*sigset));
     r = kvm_vcpu_ioctl(env, KVM_SET_SIGNAL_MASK, sigmask);
     g_free(sigmask);

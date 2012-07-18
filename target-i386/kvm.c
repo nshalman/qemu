@@ -760,7 +760,11 @@ static void get_seg(SegmentCache *lhs, const struct kvm_segment *rhs)
                  (rhs->avl * DESC_AVL_MASK);
 }
 
+#ifdef CONFIG_LINUX
 static void kvm_getput_reg(__u64 *kvm_reg, target_ulong *qemu_reg, int set)
+#else
+static void kvm_getput_reg(uint64_t *kvm_reg, target_ulong *qemu_reg, int set)
+#endif
 {
     if (set) {
         *kvm_reg = *qemu_reg;
