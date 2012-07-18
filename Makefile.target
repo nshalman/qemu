@@ -421,6 +421,9 @@ $(QEMU_PROG): $(QEMU_PROGW)
 else
 $(QEMU_PROG): $(obj-y) $(obj-$(TARGET_BASE_ARCH)-y)
 	$(call LINK,$^)
+ifdef CONFIG_DEBUG_CTF
+	$(call quiet-command, $(CTFMERGE) -L VERSION -o $@ $(target-all-objs),"  CTF	$@")
+endif
 endif
 
 gdbstub-xml.c: $(TARGET_XML_FILES) $(SRC_PATH)/scripts/feature_to_c.sh
