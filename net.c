@@ -2,6 +2,7 @@
  * QEMU System Emulator
  *
  * Copyright (c) 2003-2008 Fabrice Bellard
+ * Copyright 2011 Joyent, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,6 +38,10 @@
 #include "qmp-commands.h"
 #include "hw/qdev.h"
 #include "iov.h"
+
+#ifdef CONFIG_SUNOS_VNIC
+#include "net/vnic.h"
+#endif
 
 /* Net bridge is currently not supported for W32. */
 #if !defined(_WIN32)
@@ -1047,6 +1052,86 @@ static const struct {
         },
     },
 #endif
+#ifdef CONFIG_SUNOS_VNIC
+    [NET_CLIENT_TYPE_VNIC] = {
+        .type = "vnic",
+        .init = net_init_vnic,
+        .desc = {
+            NET_COMMON_PARAMS_DESC,
+            {
+                .name = "ifname",
+                .type = QEMU_OPT_STRING,
+                .help = "vnic interface name",
+            },
+            {
+                .name = "macaddr",
+                .type = QEMU_OPT_STRING,
+                .help = "MAC address",
+            },
+            {
+                .name = "ip",
+                .type = QEMU_OPT_STRING,
+                .help = "DHCP IP address",
+            },
+            {
+                .name = "netmask",
+                .type = QEMU_OPT_STRING,
+                .help = "DHCP netmask",
+            },
+            {
+                .name = "gateway_ip",
+                .type = QEMU_OPT_STRING,
+                .help = "DHCP gateway IP address",
+            },
+            {
+                .name = "server_ip",
+                .type = QEMU_OPT_STRING,
+                .help = "IP address to return as the DHCP server",
+            },
+            {
+                .name = "dns_ip",
+                .type = QEMU_OPT_STRING,
+                .help = "DHCP DNS server IP address",
+            },
+            {
+                .name = "dns_ip0",
+                .type = QEMU_OPT_STRING,
+                .help = "DHCP DNS server IP address",
+            },
+            {
+                .name = "dns_ip1",
+                .type = QEMU_OPT_STRING,
+                .help = "DHCP DNS server IP address",
+            },
+            {
+                .name = "dns_ip2",
+                .type = QEMU_OPT_STRING,
+                .help = "DHCP DNS server IP address",
+            },
+           {
+                .name = "dns_ip2",
+                .type = QEMU_OPT_STRING,
+                .help = "DHCP DNS server IP address",
+            },
+            {
+                .name = "dns_ip3",
+                .type = QEMU_OPT_STRING,
+                .help = "DHCP DNS server IP address",
+            },
+            {
+                .name = "hostname",
+                .type = QEMU_OPT_STRING,
+                .help = "DHCP DNS server IP address",
+            },
+            {
+                .name = "lease_time",
+                .type = QEMU_OPT_NUMBER,
+                .help = "DHCP DNS server lease time",
+            },
+            { /* end of list */ }
+        },
+    },
+#endif
     [NET_CLIENT_TYPE_DUMP] = {
         .type = "dump",
         .init = net_init_dump,
@@ -1107,6 +1192,9 @@ int net_client_init(Monitor *mon, QemuOpts *opts, int is_netdev)
 #endif
 #ifdef CONFIG_VDE
             strcmp(type, "vde") != 0 &&
+#endif
+#ifdef CONFIG_SUNOS_VNIC
+            strcmp(type, "vnic") != 0 &&
 #endif
             strcmp(type, "socket") != 0) {
             qerror_report(QERR_INVALID_PARAMETER_VALUE, "type",
@@ -1180,6 +1268,9 @@ static int net_host_check_device(const char *device)
 #endif
 #ifdef CONFIG_VDE
                                        ,"vde"
+#endif
+#ifdef CONFIG_SUNOS_VNIC
+                                       ,"vnic"
 #endif
     };
     for (i = 0; i < sizeof(valid_param_list) / sizeof(char *); i++) {
@@ -1387,6 +1478,7 @@ void net_check_clients(void)
             case NET_CLIENT_TYPE_TAP:
             case NET_CLIENT_TYPE_SOCKET:
             case NET_CLIENT_TYPE_VDE:
+            case NET_CLIENT_TYPE_VNIC:
                 has_host_dev = 1;
                 break;
             default: ;
