@@ -19,9 +19,6 @@
 #include "hw/sysbus.h"
 #include "hw/kvm/clock.h"
 
-#include <linux/kvm.h>
-#include <linux/kvm_para.h>
-
 typedef struct KVMClockState {
     SysBusDevice busdev;
     uint64_t clock;

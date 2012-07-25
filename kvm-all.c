@@ -18,8 +18,6 @@
 #include <sys/mman.h>
 #include <stdarg.h>
 
-#include <linux/kvm.h>
-
 #include "qemu-common.h"
 #include "qemu-barrier.h"
 #include "sysemu.h"
