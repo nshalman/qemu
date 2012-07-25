@@ -19,7 +19,13 @@
 #include "qemu-queue.h"
 
 #ifdef CONFIG_KVM
+#ifdef __sun__
+#include <sys/kvm.h>
+#include <sys/kvm_para.h>
+#else
 #include <linux/kvm.h>
+#include <linux/kvm_para.h>
+#endif
 #endif
 
 extern int kvm_allowed;

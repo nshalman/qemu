@@ -17,9 +17,6 @@
 #include <sys/mman.h>
 #include <sys/utsname.h>
 
-#include <linux/kvm.h>
-#include <linux/kvm_para.h>
-
 #include "qemu-common.h"
 #include "sysemu.h"
 #include "kvm.h"
@@ -355,7 +352,9 @@ int kvm_arch_init_vcpu(CPUX86State *env)
     uint32_t limit, i, j, cpuid_i;
     uint32_t unused;
     struct kvm_cpuid_entry2 *c;
+#ifndef CONFIG_SOLARIS
     uint32_t signature[3];
+#endif
     int r;
 
     env->cpuid_features &= kvm_arch_get_supported_cpuid(s, 1, 0, R_EDX);
@@ -373,6 +372,7 @@ int kvm_arch_init_vcpu(CPUX86State *env)
 
     cpuid_i = 0;
 
+#ifndef CONFIG_SOLARIS
     /* Paravirtualization CPUIDs */
     c = &cpuid_data.entries[cpuid_i++];
     memset(c, 0, sizeof(*c));
@@ -443,6 +443,7 @@ int kvm_arch_init_vcpu(CPUX86State *env)
     }
 
     has_msr_async_pf_en = c->eax & (1 << KVM_FEATURE_ASYNC_PF);
+#endif
 
     cpu_x86_cpuid(env, 0, 0, &limit, &unused, &unused, &unused);
 
