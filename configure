@@ -3364,8 +3364,6 @@ if test "$sunos_vnic" = "yes" ; then
   if test "$kvm" = "yes" ; then
     echo "CONFIG_SUNOS_VNIC_KVM=y" >> $config_host_mak
   fi
-else
-    echo "failed"
 fi
 
 if test "$smartcard" = "yes" ; then
