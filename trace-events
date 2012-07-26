@@ -590,10 +590,10 @@ qemu_coroutine_terminate(void *co) "self %p"
 # qemu-coroutine-lock.c
 qemu_co_queue_next_bh(void) ""
 qemu_co_queue_next(void *nxt) "next %p"
-qemu_co_mutex_lock_entry(void *mutex, void *self) "mutex %p self %p"
-qemu_co_mutex_lock_return(void *mutex, void *self) "mutex %p self %p"
-qemu_co_mutex_unlock_entry(void *mutex, void *self) "mutex %p self %p"
-qemu_co_mutex_unlock_return(void *mutex, void *self) "mutex %p self %p"
+qemu_co_mutex_lock_entry(void *mutex, void *co) "mutex %p self %p"
+qemu_co_mutex_lock_return(void *mutex, void *co) "mutex %p self %p"
+qemu_co_mutex_unlock_entry(void *mutex, void *co) "mutex %p self %p"
+qemu_co_mutex_unlock_return(void *mutex, void *co) "mutex %p self %p"
 
 # hw/escc.c
 escc_put_queue(char channel, int b) "channel %c put: 0x%02x"

@@ -15,9 +15,17 @@ QEMU_OBJS_LIB=$(addsuffix .lo,$(basename $(QEMU_OBJS)))
 
 QEMU_CFLAGS+=-I../
 
+qemu-oslib-trace-objs=$(oslib-obj-y)
+qemu-oslib-dtrace-objs=
+ifdef CONFIG_TRACE_DTRACE
+qemu-oslib-dtrace-objs+=qemu-oslib.dtrace.o
+qemu-oslib.dtrace.o: trace-dtrace.dtrace $(qemu-oslib-trace-objs)
+	$(call DTRACE,$@,trace-dtrace.dtrace,$(qemu-oslib-trace-objs))
+endif
+
 libcacard.lib-y=$(addsuffix .lo,$(basename $(libcacard-y)))
 
-vscclient: $(libcacard-y) $(QEMU_OBJS) vscclient.o
+vscclient: $(libcacard-y) $(QEMU_OBJS) $(qemu-oslib-dtrace-objs) vscclient.o
 	$(call quiet-command,$(CC) -o $@ $^ $(libcacard_libs) $(LIBS),"  LINK  $@")
 
 clean:
