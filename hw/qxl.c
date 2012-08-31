@@ -121,11 +121,17 @@ static QXLMode qxl_modes[] = {
     QXL_MODE_EX(2048, 1536),
     QXL_MODE_EX(2560, 1440),
     QXL_MODE_EX(2560, 1600),
+    QXL_MODE_EX(3840, 1080),
 #endif
-#if VGA_RAM_SIZE >= (32 * 1024 * 1024)
+#if VGA_RAM_SIZE >= (24 * 1024 * 1024)
     /* these modes need more than 16 MB video memory */
+    QXL_MODE_EX(3840, 1200),
     QXL_MODE_EX(2560, 2048),
     QXL_MODE_EX(2800, 2100),
+    QXL_MODE_EX(3120, 1920),
+#endif
+#if VGA_RAM_SIZE >= (32 * 1024 * 1024)
+    /* these modes need more than 24 MB video memory */
     QXL_MODE_EX(3200, 2400),
 #endif
 };
@@ -2023,9 +2029,9 @@ static VMStateDescription qxl_vmstate = {
 
 static Property qxl_properties[] = {
         DEFINE_PROP_UINT32("ram_size", PCIQXLDevice, vga.vram_size,
-                           64 * 1024 * 1024),
+                           128 * 1024 * 1024),
         DEFINE_PROP_UINT32("vram_size", PCIQXLDevice, vram32_size,
-                           64 * 1024 * 1024),
+                           128 * 1024 * 1024),
         DEFINE_PROP_UINT32("revision", PCIQXLDevice, revision,
                            QXL_DEFAULT_REVISION),
         DEFINE_PROP_UINT32("debug", PCIQXLDevice, debug, 0),
