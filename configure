@@ -2164,6 +2164,7 @@ int main(void) { return 0; }
 EOF
   if compile_prog "" "-ldlpi" ; then
     sunos_vnic=yes
+    LIBS="$LIBS -lvnd"
   else
     if test "$sunos_vnic" = "yes" ; then
       feature_not_found "sunos-vnic"
