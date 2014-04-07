@@ -55,6 +55,13 @@
  */
 #define	VNIC_BUFFSIZE	65536
 
+/*
+ * XXX For QEMU >= 1.0, QEMU switched to glib's malloc
+ * but keep this patch contained to a single hunk to keep merges
+ * with Joyent's code simple
+ */
+#define qemu_mallocz g_malloc0
+
 typedef struct VNICState {
 	VLANClientState	vns_nc;
 	int		vns_fd;
