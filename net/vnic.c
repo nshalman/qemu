@@ -2,7 +2,7 @@
  * QEMU System Emulator
  * illumos VNIC/vnd support
  *
- * Copyright (c) 2013 Joyent, Inc.
+ * Copyright (c) 2014 Joyent, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stropts.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 #include <assert.h>
@@ -53,7 +54,7 @@
  * XXX We should determine a good way to get this buffer size. 64k feels like
  * such an arbitrary number...
  */
-#define	VNIC_BUFFSIZE	65536
+#define	VNIC_BUFSIZE	65536
 
 /*
  * XXX For QEMU >= 1.0, QEMU switched to glib's malloc
@@ -67,7 +68,8 @@ typedef struct VNICState {
 	int		vns_fd;
 	unsigned int	vns_rpoll;
 	unsigned int	vns_wpoll;
-	uint8_t		vns_buf[VNIC_BUFFSIZE];
+	uint8_t		vns_buf[VNIC_BUFSIZE];
+	uint8_t		vns_txbuf[VNIC_BUFSIZE];
 	uint_t		vns_sap;
 	vnd_handle_t	*vns_hdl;
 	VNICDHCPState	vns_ds;
@@ -195,14 +197,14 @@ vnic_receive(VLANClientState *ncp, const uint8_t *buf, size_t size)
 
 		ret = create_dhcp_response(buf, size, &vsp->vns_ds);
 		if (!ret)
-			return size;
+			return (size);
 
 		ret = qemu_send_packet_async(&vsp->vns_nc,
 		    vsp->vns_ds.vnds_buf, ret, vnic_send_completed);
 		if (ret == 0)
 			vnic_read_poll(vsp, 0);
 
-		return size;
+		return (size);
 	}
 
 	return (vnic_write_packet(vsp, buf, size));
@@ -212,15 +214,14 @@ static ssize_t
 vnic_receive_iov(VLANClientState *ncp, const struct iovec *iov,
     int iovcnt)
 {
-	int ret, fvec, i;
-	size_t total;
+	int ret, i;
+	size_t total, altsize;
 	VNICState *vsp = DO_UPCAST(VNICState, vns_nc, ncp);
 
 	for (total = 0, i = 0; i < iovcnt; i++) {
 		total += (iov + i)->iov_len;
 	}
 
-	assert(iovcnt <= FRAMEIO_NVECS_MAX);
 	if (vsp->vns_ds.vnds_enabled &&
 	    is_dhcp_requestv(iov, iovcnt)) {
 		/*
@@ -250,17 +251,35 @@ vnic_receive_iov(VLANClientState *ncp, const struct iovec *iov,
 	}
 
 	/*
-	 * Copy the iovcs to our write frameio.
+	 * Copy the iovcs to our write frameio. Be on the lookout for someone
+	 * giving us more vectors than we support in frameio. In that case,
+	 * let's go ahead and just simply concat the rest.
 	 */
-	for (i = 0, fvec = 0; i < iovcnt; i++, iov++) {
-
-		vsp->vns_wfio->fio_vecs[fvec].fv_buf = iov->iov_base;
-		vsp->vns_wfio->fio_vecs[fvec].fv_buflen = iov->iov_len;
-		fvec++;
+	for (i = 0; i < MIN(iovcnt, FRAMEIO_NVECS_MAX - 1); i++, iov++) {
+		vsp->vns_wfio->fio_vecs[i].fv_buf = iov->iov_base;
+		vsp->vns_wfio->fio_vecs[i].fv_buflen = iov->iov_len;
 	}
 
-	vsp->vns_wfio->fio_nvecs = fvec;
-	vsp->vns_wfio->fio_nvpf = fvec;
+	altsize = 0;
+	for (i = MIN(iovcnt, FRAMEIO_NVECS_MAX); i != iovcnt; i++, iov++) {
+		/*
+		 * The packet is too large. We're goin to silently drop it...
+		 */
+		if (altsize + iov->iov_len > VNIC_BUFSIZE)
+			return (total);
+
+		bcopy(iov->iov_base, vsp->vns_txbuf + altsize, iov->iov_len);
+		altsize += iov->iov_len;
+	}
+	if (altsize != 0) {
+		vsp->vns_wfio->fio_vecs[FRAMEIO_NVECS_MAX-1].fv_buf =
+		    vsp->vns_txbuf;
+		vsp->vns_wfio->fio_vecs[FRAMEIO_NVECS_MAX-1].fv_buflen =
+		    altsize;
+	}
+
+	vsp->vns_wfio->fio_nvecs = MIN(iovcnt, FRAMEIO_NVECS_MAX);
+	vsp->vns_wfio->fio_nvpf = MIN(iovcnt, FRAMEIO_NVECS_MAX);
 	do {
 		ret = vnd_frameio_write(vsp->vns_hdl, vsp->vns_wfio);
 	} while (ret == -1 && errno == EINTR);
@@ -268,6 +287,8 @@ vnic_receive_iov(VLANClientState *ncp, const struct iovec *iov,
 	if (ret == -1 && errno == EAGAIN) {
 		vnic_write_poll(vsp, 1);
 		return (0);
+	} else if (ret == -1) {
+		abort();
 	}
 
 	total = 0;
@@ -400,8 +421,8 @@ net_init_vnic(QemuOpts *opts, Monitor *mon, const char *name, VLANState *vlan)
 
 	vsp->vns_fd = fd;
 
-	snprintf(vsp->vns_nc.info_str, sizeof (vsp->vns_nc.info_str), "ifname=%s",
-	    qemu_opt_get(opts, "ifname"));
+	snprintf(vsp->vns_nc.info_str, sizeof (vsp->vns_nc.info_str),
+	    "ifname=%s", qemu_opt_get(opts, "ifname"));
 
 	if (vnic_dhcp_init(&vsp->vns_ds, opts) == 0)
 		return (-1);
